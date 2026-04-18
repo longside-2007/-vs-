@@ -1,0 +1,7 @@
+<Solution>
+  <Configurations>
+    <Platform Name="x64" />
+    <Platform Name="x86" />
+  </Configurations>
+  <Project Path="hollowknight/hollowknight.vcxproj" Id="d1b9a64a-2868-4aec-91cd-7d59c6b40a8c" />
+</Solution>
