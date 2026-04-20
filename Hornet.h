@@ -6,136 +6,171 @@
 
 class Hornet : public BaseCharacter {
 public:
-    // 1. 新增 JUMP 状态
-    enum CharState { IDLE, RUN, DASH, JUMP };
-    CharState currentState;
+    int status; // 0IDLE 1RUN 2DASH 3JUMP 4SILK
 
     sf::Sprite sprite;
-    std::vector<sf::Texture> idleTextures;
-    std::vector<sf::Texture> runTextures;
-    std::vector<sf::Texture> dashTextures;
-    std::vector<sf::Texture> jumpTextures; // 2. 新增跳跃动画数组
-    float animTimer;
-    int currentFrame;
+    sf::Sprite effectSprite;
 
-    // ================= 冲刺技能专属变量 =================
-    bool isDashing;
-    float dashSpeed;
-    float dashDuration;
-    float dashTimer;
+    std::vector<sf::Texture> idle_tex, run_tex, dash_tex, jump_tex;
+    std::vector<sf::Texture> silk_tex;
+    std::vector<sf::Texture> silk_eff_tex;
+
+    float t_anim, t_eff;
+    int cur_frame, eff_frame;
+
+    bool is_dash, is_silk;
+    float dash_s, dash_t, dash_dur;
+
+    float dash_cd;
+    float silk_cd;
 
     Hornet(float startX, float startY)
         : BaseCharacter(startX, startY, sf::Color::Transparent) {
         hp = 12;
-        animTimer = 0.0f;
-        currentFrame = 0;
-        currentState = IDLE;
+        t_anim = 0.0f; t_eff = 0.0f;
+        cur_frame = 0; eff_frame = 0;
+        status = 0;
+        is_dash = false; is_silk = false;
+        dash_s = 35.0f; dash_dur = 0.3f;
+        jump_p = -38.0f;
 
-        isDashing = false;
-        dashSpeed = 35.0f;
-        dashDuration = 0.3f;
-        dashTimer = 0.0f;
-        jumpPower = -38.0f;
-        float scaleFactor = 1.6f;
-        shape.setSize(sf::Vector2f(80.0f * scaleFactor, 130.0f * scaleFactor));
+        dash_cd = 0.0f;
+        silk_cd = 0.0f;
 
-        // 加载 Idle
+        float s = 1.6f;
+        shape.setSize(sf::Vector2f(50.0f * s, 110.0f * s));
+
         for (int i = 1; i <= 6; ++i) {
             sf::Texture tex;
-            if (tex.loadFromFile("Hornet/Idle/" + std::to_string(i) + ".png")) idleTextures.push_back(tex);
+            if (tex.loadFromFile("Hornet/Idle/" + std::to_string(i) + ".png")) idle_tex.push_back(tex);
         }
-
-        // 加载 Run 
         for (int i = 1; i <= 6; ++i) {
             sf::Texture tex;
-            if (tex.loadFromFile("Hornet/Run/" + std::to_string(i) + ".png")) runTextures.push_back(tex);
+            if (tex.loadFromFile("Hornet/Run/" + std::to_string(i) + ".png")) run_tex.push_back(tex);
         }
-
-        // 加载 Dash 
         for (int i = 1; i <= 2; ++i) {
             sf::Texture tex;
-            if (tex.loadFromFile("Hornet/Dash/" + std::to_string(i) + ".png")) dashTextures.push_back(tex);
+            if (tex.loadFromFile("Hornet/Dash/" + std::to_string(i) + ".png")) dash_tex.push_back(tex);
         }
-
-       
-        for (int i = 1; i <= 8; ++i) { 
+        for (int i = 1; i <= 4; ++i) {
             sf::Texture tex;
-            if (tex.loadFromFile("Hornet/Jump/" + std::to_string(i) + ".png"))
-                jumpTextures.push_back(tex);
-            else
-                std::cout << "找不到大黄蜂跳跃图片: Hornet/Jump/" << i << ".png" << std::endl;
+            if (tex.loadFromFile("Hornet/Jump/" + std::to_string(i) + ".png")) jump_tex.push_back(tex);
+        }
+        for (int i = 1; i <= 17; ++i) {
+            sf::Texture tex;
+            if (tex.loadFromFile("Hornet/Silk/" + std::to_string(i) + ".png")) silk_tex.push_back(tex);
+        }
+        for (int i = 1; i <= 9; ++i) {
+            sf::Texture tex;
+            if (tex.loadFromFile("Hornet/SilkEffect/" + std::to_string(i) + ".png")) silk_eff_tex.push_back(tex);
         }
 
-        if (!idleTextures.empty()) {
-            sprite.setTexture(idleTextures[0], true);
-            sprite.setOrigin(idleTextures[0].getSize().x / 2.0f, idleTextures[0].getSize().y);
+        if (!idle_tex.empty()) {
+            sprite.setTexture(idle_tex[0], true);
+            sprite.setOrigin(idle_tex[0].getSize().x / 2.0f, idle_tex[0].getSize().y);
         }
     }
 
     void dash() {
-        if (!isDashing && isGrounded) {
-            isDashing = true;
-            dashTimer = dashDuration;
-            currentState = DASH;
-            currentFrame = 0;
+        if (!is_dash && !is_silk && on_ground && dash_cd <= 0.0f) {
+            is_dash = true;
+            dash_t = dash_dur;
+            dash_cd = 3.0f;
+            status = 2;
+            cur_frame = 0;
+        }
+    }
+
+    void silk() {
+        if (!is_silk && !on_ground && silk_cd <= 0.0f) {
+            is_silk = true;
+            silk_cd = 3.0f;
+            status = 4;
+            cur_frame = 0;
+            eff_frame = 0;
+            v_y = 0;
         }
     }
 
     void updatePhysics(float floorY, float mapWidth) override {
-        BaseCharacter::updatePhysics(floorY, mapWidth);
+        if (dash_cd > 0.0f) dash_cd -= 0.016f;
+        if (silk_cd > 0.0f) silk_cd -= 0.016f;
 
-      
-        if (isDashing) {
-            dashTimer -= 0.016f;
-            if (isFacingRight) shape.move(dashSpeed, 0);
-            else shape.move(-dashSpeed, 0);
-
-            if (dashTimer <= 0) isDashing = false;
+        if (is_silk) {
+            v_y += 0.2f;
+            shape.move(0, v_y);
+            if (shape.getPosition().y + shape.getSize().y >= floorY) {
+                shape.setPosition(shape.getPosition().x, floorY - shape.getSize().y);
+                is_silk = false; v_y = 0; on_ground = true;
+            }
         }
-        else if (!isGrounded) {
-            
-            currentState = JUMP;
+        else if (is_dash) {
+            dash_t -= 0.016f;
+            if (face_right) shape.move(dash_s, 0);
+            else shape.move(-dash_s, 0);
+
+            if (shape.getPosition().x < 0) shape.setPosition(0, shape.getPosition().y);
+            if (shape.getPosition().x > mapWidth - shape.getSize().x) shape.setPosition(mapWidth - shape.getSize().x, shape.getPosition().y);
+
+            if (dash_t <= 0) {
+                is_dash = false;
+            }
         }
         else {
-            if (sf::Keyboard::isKeyPressed(sf::Keyboard::Left) || sf::Keyboard::isKeyPressed(sf::Keyboard::Right)) {
-                currentState = RUN;
-            }
-            else {
-                currentState = IDLE;
-            }
+            BaseCharacter::updatePhysics(floorY, mapWidth);
         }
 
-        std::vector<sf::Texture>* activeAnim = &idleTextures;
-        if (currentState == RUN && !runTextures.empty()) activeAnim = &runTextures;
-        if (currentState == DASH && !dashTextures.empty()) activeAnim = &dashTextures;
-        if (currentState == JUMP && !jumpTextures.empty()) activeAnim = &jumpTextures;
+        if (is_silk) status = 4;
+        else if (is_dash) status = 2;
+        else if (!on_ground) status = 3;
+        else if (sf::Keyboard::isKeyPressed(sf::Keyboard::Left) || sf::Keyboard::isKeyPressed(sf::Keyboard::Right)) status = 1;
+        else status = 0;
 
-        // 播放动画
-        if (!activeAnim->empty()) {
-            animTimer += 0.016f;
-            float frameSpeed = (currentState == IDLE) ? 0.1f : 0.06f;
+        std::vector<sf::Texture>* cur_t = &idle_tex;
+        if (status == 1) cur_t = &run_tex;
+        else if (status == 3) cur_t = &jump_tex;
+        else if (status == 2) cur_t = &dash_tex;
+        else if (status == 4) cur_t = &silk_tex;
 
-            if (animTimer > frameSpeed) {
-                currentFrame = (currentFrame + 1) % activeAnim->size();
+        if (cur_t && !cur_t->empty()) {
+            t_anim += 0.016f;
+            float spd = (status == 4) ? 0.04f : ((status == 0) ? 0.1f : 0.08f);
+            if (t_anim > spd) {
+                cur_frame++;
 
-                // 冲刺和跳跃在空中卡在最后一帧
-                if ((currentState == DASH || currentState == JUMP) && currentFrame == 0) {
-                    currentFrame = activeAnim->size() - 1;
+                if (is_silk && cur_frame >= cur_t->size()) {
+                    is_silk = false;
+                    cur_frame = 0;
+                }
+                else if ((status == 3 || status == 2) && cur_frame >= cur_t->size()) {
+                    cur_frame = cur_t->size() - 1;
+                }
+                else if (status != 4 && status != 3 && status != 2) {
+                    cur_frame %= cur_t->size();
                 }
 
-                // 加上 true 防止裁切
-                sprite.setTexture(activeAnim->at(currentFrame), true);
-                sprite.setOrigin(activeAnim->at(currentFrame).getSize().x / 2.0f, activeAnim->at(currentFrame).getSize().y);
-                animTimer = 0.0f;
+                sprite.setTexture(cur_t->at(cur_frame), true);
+                sprite.setOrigin(cur_t->at(cur_frame).getSize().x / 2.0f, cur_t->at(cur_frame).getSize().y);
+                t_anim = 0.0f;
             }
-
-            float bottomCenterX = shape.getPosition().x + shape.getSize().x / 2.0f;
-            float bottomCenterY = shape.getPosition().y + shape.getSize().y;
-            sprite.setPosition(bottomCenterX, bottomCenterY);
-
-            float scaleFactor = 1.6f;
-            if (isFacingRight) sprite.setScale(-scaleFactor, scaleFactor);
-            else sprite.setScale(scaleFactor, scaleFactor);
         }
+
+        if (is_silk && !silk_eff_tex.empty()) {
+            t_eff += 0.016f;
+            if (t_eff > 0.05f) {
+                eff_frame++;
+                t_eff = 0.0f;
+            }
+            if (eff_frame < silk_eff_tex.size()) {
+                effectSprite.setTexture(silk_eff_tex[eff_frame], true);
+                effectSprite.setOrigin(silk_eff_tex[eff_frame].getSize().x / 2.0f, silk_eff_tex[eff_frame].getSize().y / 2.0f);
+                effectSprite.setPosition(sprite.getPosition().x, sprite.getPosition().y - shape.getSize().y / 2.0f);
+                effectSprite.setScale(2.0f, 2.0f);
+            }
+        }
+
+        sprite.setPosition(shape.getPosition().x + shape.getSize().x / 2.0f, shape.getPosition().y + shape.getSize().y);
+        float s = 1.6f;
+        sprite.setScale(face_right ? -s : s, s);
     }
 };

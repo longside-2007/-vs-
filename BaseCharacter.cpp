@@ -5,35 +5,34 @@ BaseCharacter::BaseCharacter(float startX, float startY, sf::Color color) {
     shape.setFillColor(color);
     shape.setPosition(startX, startY);
 
-    velocityY = 0.0f;
-    isGrounded = false;
-    moveSpeed = 15.0f;
-    jumpPower = -25.0f;
-    hp = 100; 
-    isFacingRight = true; 
-    invinTimer = 0.0f;
+    v_y = 0.0f;
+    on_ground = false;
+    speed = 15.0f;
+    jump_p = -25.0f;
+    hp = 100;
+    face_right = true;
+    wudi_time = 0.0f;
 }
 
 BaseCharacter::~BaseCharacter() {}
 
 void BaseCharacter::updatePhysics(float floorY, float mapWidth) {
-    // 1. 重力模拟
-    if (!isGrounded) {
-        velocityY += 1.2f;
+    // 往下掉
+    if (on_ground == false) {
+        v_y += 1.2f;
     }
-    shape.move(0, velocityY);
+    shape.move(0, v_y);
 
-    // 2. 地板碰撞检测
     if (shape.getPosition().y + shape.getSize().y >= floorY) {
         shape.setPosition(shape.getPosition().x, floorY - shape.getSize().y);
-        velocityY = 0.0f;
-        isGrounded = true;
+        v_y = 0.0f;
+        on_ground = true;
     }
     else {
-        isGrounded = false;
+        on_ground = false;
     }
 
-    // 3. 左右空气墙限制
+    // 墙
     if (shape.getPosition().x < 0) {
         shape.setPosition(0, shape.getPosition().y);
     }
@@ -42,17 +41,18 @@ void BaseCharacter::updatePhysics(float floorY, float mapWidth) {
     }
 }
 
-// 基础动作实现
-void BaseCharacter::moveLeft() { isFacingRight = false; 
-    shape.move(-moveSpeed, 0); 
+void BaseCharacter::moveLeft() {
+    face_right = false;
+    shape.move(-speed, 0);
 }
-void BaseCharacter::moveRight() { isFacingRight = true; 
-    shape.move(moveSpeed, 0); 
+void BaseCharacter::moveRight() {
+    face_right = true;
+    shape.move(speed, 0);
 }
 
 void BaseCharacter::jump() {
-    if (isGrounded) {
-        velocityY = jumpPower;
-        isGrounded = false;
+    if (on_ground) {
+        v_y = jump_p;
+        on_ground = false;
     }
 }
